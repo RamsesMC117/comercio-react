@@ -60,7 +60,8 @@ export default function Detalles() {
             nombre: producto.nombre,
             precio: producto.precio,
             cantidad: cantidadSeleccionada,
-            imagen: producto.imagen
+            imagen: producto.imagen,
+            puntos: producto.puntos
         };
 
         try {
@@ -113,6 +114,7 @@ export default function Detalles() {
                         <h2 className='text-2xl font-bold'>{producto.nombre}</h2>
                         <p className='text-lg'>{producto.descripcion}</p>
                         <p className='text-lg'>Precio: ${producto.precio}</p>
+                        <p className='text-lg'>Puntos: {producto.puntos}</p>
                     </div>
                 </div>
                 <div className='flex flex-row rounded-lg drop-shadow-2xl w-96 h-96'>

@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { useAuthState } from "react-firebase-hooks/auth";
 import { auth, firestore } from "../firebaseConfig";
-import { doc, getDoc, setDoc, deleteDoc, updateDoc } from "firebase/firestore"; // Importa updateDoc
-import { List, Button, Spin, InputNumber } from "antd"; // Ant Design components for better UI
+import { doc, getDoc, setDoc, deleteDoc, updateDoc } from "firebase/firestore";
+import { List, Button, Spin } from "antd";
 import jsPDF from "jspdf";
 import autoTable from 'jspdf-autotable';
 
@@ -11,24 +11,27 @@ export default function Carrito() {
     const [cartItems, setCartItems] = useState([]);
     const [loading, setLoading] = useState(true);
     const [totalAmount, setTotalAmount] = useState(0);
+    const [totalPoints, setTotalPoints] = useState(0);
 
     useEffect(() => {
         const fetchCartItems = async () => {
             if (user) {
-                const cartRef = doc(firestore, 'carrito', user.uid); // Reference to the user's cart
-                const cartSnapshot = await getDoc(cartRef); // Get the cart document
+                const cartRef = doc(firestore, 'carrito', user.uid);
+                const cartSnapshot = await getDoc(cartRef);
                 if (cartSnapshot.exists()) {
                     const cartData = cartSnapshot.data();
-                    setCartItems(cartData.productos); // Set the cart items in state
+                    setCartItems(cartData.productos);
 
-                    // Calculate the total amount
                     const total = cartData.productos.reduce((sum, item) => sum + item.cantidad * item.precio, 0);
+                    const points = cartData.productos.reduce((sum, item) => sum + item.cantidad * item.puntos, 0);
                     setTotalAmount(total);
+                    setTotalPoints(points);
                 } else {
-                    setCartItems([]); // If the cart doesn't exist, set an empty array
-                    setTotalAmount(0); // Set total amount to 0
+                    setCartItems([]);
+                    setTotalAmount(0);
+                    setTotalPoints(0);
                 }
-                setLoading(false); // Set loading to false once data is fetched
+                setLoading(false);
             }
         };
 
@@ -41,35 +44,34 @@ export default function Carrito() {
         doc.text("Resumen de la Compra", 14, 16);
         autoTable(doc, {
             startY: 22,
-            head: [['Producto', 'Cantidad', 'Precio', 'Total']],
-            body: cartItems.map(item => [item.nombre, item.cantidad, `$${item.precio}`, `$${item.cantidad * item.precio}`]),
+            head: [['Producto', 'Cantidad', 'Precio', 'Puntos', 'Total']],
+            body: cartItems.map(item => [item.nombre, item.cantidad, `$${item.precio}`, item.puntos, `$${item.cantidad * item.precio}`]),
         });
 
         doc.text(`Total: $${totalAmount}`, 14, doc.lastAutoTable.finalY + 10);
+        doc.text(`Puntos totales: ${totalPoints}`, 14, doc.lastAutoTable.finalY + 20);
         doc.save("resumen-de-compra.pdf");
     };
 
     const handlePurchase = async () => {
         if (user) {
             try {
-                // Move cart items to the "compras" collection
                 const compraRef = doc(firestore, 'compras', user.uid);
                 await setDoc(compraRef, {
                     productos: cartItems,
                     total: totalAmount,
+                    puntos: totalPoints,
                     fecha: new Date()
                 });
 
-                // Generate the PDF
                 generatePDF();
 
-                // Clear the cart
                 const cartRef = doc(firestore, 'carrito', user.uid);
-                await deleteDoc(cartRef); // Delete the cart document
+                await deleteDoc(cartRef);
 
-                // Clear local state
                 setCartItems([]);
                 setTotalAmount(0);
+                setTotalPoints(0);
 
                 alert("Compra realizada con éxito!");
             } catch (error) {
@@ -111,11 +113,16 @@ export default function Carrito() {
         if (user) {
             const cartRef = doc(firestore, 'carrito', user.uid);
             await updateDoc(cartRef, { productos: updatedItems });
+
+            const total = updatedItems.reduce((sum, item) => sum + item.cantidad * item.precio, 0);
+            const points = updatedItems.reduce((sum, item) => sum + item.cantidad * item.puntos, 0);
+            setTotalAmount(total);
+            setTotalPoints(points);
         }
     };
 
     if (loading) {
-        return <Spin size="large" />; // Show a loading spinner while data is being fetched
+        return <Spin size="large" />;
     }
 
     return (
@@ -130,13 +137,13 @@ export default function Carrito() {
                             actions={[
                                 <Button onClick={() => handleIncreaseQuantity(item)}>+</Button>,
                                 <Button onClick={() => handleDecreaseQuantity(item)}>-</Button>,
-                                <Button onClick={() => handleRemoveFromCart(item)} danger>Eliminar</Button> // Add a remove button
+                                <Button onClick={() => handleRemoveFromCart(item)} danger>Eliminar</Button>
                             ]}
                         >
                             <List.Item.Meta
-                                avatar={<img src={item.imagen} alt={item.nombre} style={{ width: 50, height: 50 }} />} // Use the product image
+                                avatar={<img src={item.imagen} alt={item.nombre} style={{ width: 50, height: 50 }} />}
                                 title={item.nombre}
-                                description={`Cantidad: ${item.cantidad} | Precio: $${item.precio}`}
+                                description={`Cantidad: ${item.cantidad} | Precio: $${item.precio} | Puntos: ${item.puntos}`}
                             />
                             <div>
                                 Total: ${item.cantidad * item.precio}
@@ -146,6 +153,9 @@ export default function Carrito() {
                 />
                 <div style={{ marginTop: '20px', fontSize: '18px', fontWeight: 'bold' }}>
                     Total: ${totalAmount}
+                </div>
+                <div style={{ marginTop: '10px', fontSize: '16px' }}>
+                    Puntos totales: {totalPoints}
                 </div>
             </div>
             <div className="flex flex-row p-4 m-2">
