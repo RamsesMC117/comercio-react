@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useAuthState } from "react-firebase-hooks/auth";
 import { auth, firestore } from "../firebaseConfig";
-import { doc, getDoc, setDoc, deleteDoc, updateDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc, updateDoc, deleteDoc } from "firebase/firestore";
 import { List, Button, Spin } from "antd";
 import jsPDF from "jspdf";
 import autoTable from 'jspdf-autotable';
@@ -49,7 +49,7 @@ export default function Carrito() {
         });
 
         doc.text(`Total: $${totalAmount}`, 14, doc.lastAutoTable.finalY + 10);
-        doc.text(`Puntos totales: ${totalPoints}`, 14, doc.lastAutoTable.finalY + 20);
+        doc.text(`Puntos por compra: ${totalPoints}`, 14, doc.lastAutoTable.finalY + 20);
         doc.save("resumen-de-compra.pdf");
     };
 
@@ -57,12 +57,26 @@ export default function Carrito() {
         if (user) {
             try {
                 const compraRef = doc(firestore, 'compras', user.uid);
-                await setDoc(compraRef, {
-                    productos: cartItems,
-                    total: totalAmount,
-                    puntos: totalPoints,
-                    fecha: new Date()
-                });
+                const compraSnapshot = await getDoc(compraRef);
+
+                if (compraSnapshot.exists()) {
+                    const compraData = compraSnapshot.data();
+                    const nuevosPuntos = (compraData.puntos || 0) + totalPoints;
+
+                    await updateDoc(compraRef, {
+                        productos: [...compraData.productos, ...cartItems],
+                        total: compraData.total + totalAmount,
+                        puntos: nuevosPuntos,
+                        ultimaCompra: new Date()
+                    });
+                } else {
+                    await setDoc(compraRef, {
+                        productos: cartItems,
+                        total: totalAmount,
+                        puntos: totalPoints,
+                        fecha: new Date()
+                    });
+                }
 
                 generatePDF();
 
@@ -155,7 +169,7 @@ export default function Carrito() {
                     Total: ${totalAmount}
                 </div>
                 <div style={{ marginTop: '10px', fontSize: '16px' }}>
-                    Puntos totales: {totalPoints}
+                    Puntos por compra: {totalPoints}
                 </div>
             </div>
             <div className="flex flex-row p-4 m-2">
